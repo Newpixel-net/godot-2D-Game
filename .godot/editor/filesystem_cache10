@@ -1,0 +1,17 @@
+63f7b34db8d8cdea90c76aacccf841ec
+::res://::1762007912
+export_presets.cfg::TextFile::-1::1762007845::0::1::::<><><>0<>0<><>::
+GODOT_SETUP_GUIDE.md::TextFile::-1::1762007845::0::1::::<><><>0<>0<><>::
+icon.svg::CompressedTexture2D::1860293870323182027::1762007845::1762007915::1::::<><><>0<>0<>b99b8681473733679e3e9120a9fb7a33<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
+README.md::TextFile::-1::1762007845::0::1::::<><><>0<>0<><>::
+::res://scenes/::1762007845
+main.tscn::PackedScene::3180383465480935453::1762007845::0::1::::<><><>0<>0<><>::res://scripts/main.gd<>uid://b8yqkj3qxqxqx::::res://scenes/player.tscn<>res://scripts/wheel.gd<>res://scripts/game_ui.gd
+player.tscn::PackedScene::4753187436391950211::1762007845::0::1::::<><><>0<>0<><>::res://scripts/player.gd
+portal.tscn::PackedScene::7211923898378781602::1762007845::0::1::::<><><>0<>0<><>::res://scripts/portal.gd
+::res://scripts/::1762007845
+game_manager.gd::GDScript::3369595332322173475::1762007845::0::1::::<>Node<><>0<>0<><>::
+game_ui.gd::GDScript::618185898840642053::1762007845::0::1::::<>CanvasLayer<><>0<>0<><>::
+main.gd::GDScript::6977668221022786846::1762007845::0::1::::<>Node2D<><>0<>0<><>::
+player.gd::GDScript::4030726627146992417::1762007845::0::1::::<>CharacterBody2D<><>0<>0<><>::
+portal.gd::GDScript::4796718106670176475::1762007845::0::1::::<>Area2D<><>0<>0<><>::
+wheel.gd::GDScript::2610331176535836571::1762007845::0::1::::<>Node2D<><>0<>0<><>::
