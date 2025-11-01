@@ -1,138 +1,172 @@
-extends Area2D
-## Portal - The colored gates that player must match
+## Portal gate obstacle
 ##
-## Features:
-## - Has a required animal/color
-## - Checks if player's wheel matches when passing through
-## - Visual feedback (green flash for correct, red for wrong)
-## - Automatically removes itself when off-screen
+## Gates that the player must pass through with the correct color match.
+## Portals move from right to left at a constant speed.
+## Collision detection triggers match checking against the color wheel.
+##
+## @tutorial: See docs/ASSET_INTEGRATION.md for portal sprite replacement
 
-# Portal configuration
-const PORTAL_WIDTH = 40.0
-const PORTAL_HEIGHT = 200.0
-const FLASH_DURATION = 0.3
+extends Area2D
+class_name Portal
 
-# Portal state
-var required_animal: String = ""
-var required_color: Color = Color.WHITE
-var has_been_checked: bool = false
-var is_flashing: bool = false
-var flash_timer: float = 0.0
-var flash_color: Color = Color.WHITE
+## Speed at which portal moves left (should match background scroll speed)
+@export var move_speed: float = -200.0
 
-# References
-var wheel_reference = null
-@onready var sprite = $Sprite
-@onready var collision = $CollisionShape2D
-@onready var label = $Label
+## Required color name for this portal
+var required_color: String = ""
 
-func _ready():
-	# Connect to player entering the portal
+## Has this portal been checked yet?
+var is_passed: bool = false
+
+## Reference to visual elements
+@onready var sprite: ColorRect = $Sprite
+@onready var collision_shape: CollisionShape2D = $CollisionShape2D
+@onready var label: Label = $Label
+@onready var particles: CPUParticles2D = $Particles
+
+## Emitted when player passes through correctly
+signal portal_passed_correct
+
+## Emitted when player passes through incorrectly
+signal portal_passed_wrong
+
+## Color map for visual representation
+var color_map: Dictionary = {
+	"blue": Color(0.2, 0.6, 1.0, 0.6),
+	"red": Color(1.0, 0.2, 0.2, 0.6),
+	"green": Color(0.2, 1.0, 0.2, 0.6),
+	"yellow": Color(1.0, 1.0, 0.2, 0.6),
+	"purple": Color(0.8, 0.2, 1.0, 0.6),
+	"orange": Color(1.0, 0.6, 0.2, 0.6),
+	"pink": Color(1.0, 0.4, 0.8, 0.6),
+	"brown": Color(0.6, 0.4, 0.2, 0.6)
+}
+
+func _ready() -> void:
+	# Connect collision signal
 	body_entered.connect(_on_body_entered)
 
-	# Set up the portal visuals
-	setup_portal()
+	print("[Portal] Created - Required: ", required_color)
 
-func _process(delta):
-	# Handle flash animation
-	if is_flashing:
-		flash_timer -= delta
-		if flash_timer <= 0:
-			is_flashing = false
-			# Reset to original color
-			if sprite:
-				sprite.modulate = Color.WHITE
+func _process(delta: float) -> void:
+	# Move portal to the left
+	position.x += move_speed * delta
 
-	# Check if portal is off-screen (far to the left)
-	# Remove it to save memory
-	if global_position.x < -500:
+	# Remove portal when it goes off-screen (left side)
+	if position.x < -150:
 		queue_free()
+		print("[Portal] Despawned (off-screen)")
 
-## Set up the portal with a required animal
-func setup_portal():
-	# This will be called after wheel reference is set
-	pass
+## Initialize the portal with required color
+func initialize(color: String) -> void:
+	required_color = color
 
-## Initialize the portal with required animal and wheel reference
-func initialize(animal_name: String, animal_color: Color, wheel_ref):
-	required_animal = animal_name
-	required_color = animal_color
-	wheel_reference = wheel_ref
+	# Update visual appearance
+	if sprite:
+		sprite.color = color_map.get(color, Color.WHITE)
 
 	# Update label
 	if label:
-		label.text = animal_name
-		label.add_theme_font_size_override("font_size", 16)
+		label.text = color.capitalize()
+		label.add_theme_font_size_override("font_size", 20)
 		label.add_theme_color_override("font_color", Color.WHITE)
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
-		label.add_theme_constant_override("outline_size", 2)
+		label.add_theme_constant_override("outline_size", 3)
 
-	# Update sprite color (will use required_color in the sprite)
-	if sprite:
-		sprite.modulate = required_color
+	print("[Portal] Initialized with color: ", color)
 
-	print("Portal created - Required animal: ", required_animal)
-
-## Called when player enters the portal
-func _on_body_entered(body):
-	if has_been_checked:
-		return  # Already checked this portal
-
-	if body.name == "Player":
-		has_been_checked = true
-		check_match()
-
-## Check if the player's wheel matches the required animal
-func check_match():
-	if not wheel_reference:
-		print("Error: Wheel reference not set!")
+## Handle player entering the portal
+func _on_body_entered(body: Node2D) -> void:
+	# Prevent multiple checks
+	if is_passed:
 		return
 
-	var player_animal = wheel_reference.get_current_animal_name()
-	print("Checking match - Required: ", required_animal, " | Player has: ", player_animal)
+	# Only check if it's the player
+	if not body is Player:
+		return
 
-	if player_animal == required_animal:
-		# Correct match!
-		on_correct_match()
+	is_passed = true
+	var player: Player = body as Player
+
+	# Get player's current color
+	var player_color: String = player.get_current_color()
+
+	print("[Portal] Player entered - Required: ", required_color, " | Player: ", player_color)
+
+	# Check if colors match
+	if player_color == required_color:
+		handle_correct_match()
 	else:
-		# Wrong match!
-		on_wrong_match()
+		handle_wrong_match()
 
-## Handle correct match
-func on_correct_match():
-	print("✓ CORRECT MATCH!")
+## Handle correct color match
+func handle_correct_match() -> void:
+	print("[Portal] ✓ CORRECT MATCH!")
 
-	# Visual feedback - green flash
-	flash(Color.GREEN)
+	# Emit signal
+	portal_passed_correct.emit()
 
-	# Update game manager
-	if GameManager:
-		GameManager.add_score()
+	# Create success particles
+	create_success_particles()
 
-	# Remove portal after a short delay
+	# Flash green
+	flash_color(Color.GREEN)
+
+	# Remove after brief delay
 	await get_tree().create_timer(0.2).timeout
 	queue_free()
 
-## Handle wrong match
-func on_wrong_match():
-	print("✗ WRONG MATCH!")
+## Handle wrong color match
+func handle_wrong_match() -> void:
+	print("[Portal] ✗ WRONG MATCH!")
 
-	# Visual feedback - red flash
-	flash(Color.RED)
+	# Emit signal
+	portal_passed_wrong.emit()
 
-	# Update game manager
-	if GameManager:
-		GameManager.add_wrong()
+	# Create failure effect
+	create_failure_effect()
 
-	# Remove portal after a short delay
+	# Flash red
+	flash_color(Color.RED)
+
+	# Remove after brief delay
 	await get_tree().create_timer(0.2).timeout
 	queue_free()
 
-## Flash the portal with a color
-func flash(color: Color):
-	is_flashing = true
-	flash_timer = FLASH_DURATION
-	flash_color = color
+## Flash the portal with a specific color
+func flash_color(flash: Color) -> void:
+	if not sprite:
+		return
 
-	if sprite:
-		sprite.modulate = color
+	var original_color: Color = sprite.color
+
+	# Tween to flash color and back
+	var tween: Tween = create_tween()
+	tween.tween_property(sprite, "color", flash, 0.1)
+	tween.tween_property(sprite, "color", original_color, 0.1)
+
+## Create green sparkle particles for success
+func create_success_particles() -> void:
+	if not particles:
+		return
+
+	particles.emitting = true
+	particles.color = Color.GREEN
+	particles.amount = 30
+	particles.lifetime = 0.5
+	particles.explosiveness = 1.0
+
+## Create red warning effect for failure
+func create_failure_effect() -> void:
+	if not particles:
+		return
+
+	particles.emitting = true
+	particles.color = Color.RED
+	particles.amount = 20
+	particles.lifetime = 0.3
+	particles.explosiveness = 1.0
+
+## Get the required color for this portal
+func get_required_color() -> String:
+	return required_color

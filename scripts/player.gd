@@ -1,64 +1,142 @@
-extends CharacterBody2D
-## Player - The cat character that runs automatically
+## Player character controller
 ##
-## The player:
-## - Moves automatically from left to right
-## - Speed is controlled by GameManager
-## - Has simple bounce/idle animation (optional)
-## - Collision detection happens in the portal script
+## Handles player movement, jumping, color changes, and animations.
+## The player stays at a fixed horizontal position while the background scrolls.
+## Emits signals when color changes or important events occur.
+##
+## @tutorial: See docs/ASSET_INTEGRATION.md for sprite replacement
 
-# Player visual settings
-const PLAYER_SIZE = Vector2(60, 60)
-const PLAYER_COLOR = Color(1.0, 0.6, 0.2)  # Orange color for cat
+extends CharacterBody2D
+class_name Player
 
-# Movement
-var current_speed: float = 200.0
+## Jump force applied when jump is triggered (negative = upward)
+@export var jump_force: float = -400.0
 
-# References
-@onready var sprite = $Sprite
-@onready var collision = $CollisionShape2D
+## Gravity acceleration applied each frame
+@export var gravity: float = 980.0
 
-func _ready():
-	# Connect to game manager signals
-	if GameManager:
-		GameManager.game_speed_changed.connect(_on_speed_changed)
-		GameManager.game_over.connect(_on_game_over)
-		current_speed = GameManager.game_speed
+## Fixed horizontal position on screen
+@export var screen_position_x: float = 200.0
 
-	# Set up the player visual (will be created in scene)
-	setup_visuals()
+## Available colors that player can switch to
+@export var available_colors: Array[String] = [
+	"blue", "red", "green", "yellow",
+	"purple", "orange", "pink", "brown"
+]
 
-	print("Player ready! Starting speed: ", current_speed)
+## Current player color (affects matching with wheel)
+var current_color: String = "blue"
 
-func _physics_process(delta):
-	# Only move if game is playing
-	if not GameManager or not GameManager.is_playing():
-		velocity = Vector2.ZERO
+## Reference to animated sprite
+@onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
+@onready var collision_shape: CollisionShape2D = $CollisionShape2D
+@onready var jump_particles: CPUParticles2D = $JumpParticles
+
+## Emitted when player successfully changes color
+signal color_changed(new_color: String)
+
+## Emitted when player jumps
+signal jumped
+
+func _ready() -> void:
+	# Set fixed horizontal position
+	position.x = screen_position_x
+
+	# Start running animation
+	if animated_sprite:
+		animated_sprite.play("run")
+
+	# Set initial color
+	set_color(current_color)
+
+	print("[Player] Ready! Starting color: ", current_color)
+
+func _physics_process(delta: float) -> void:
+	# Apply gravity if not on floor
+	if not is_on_floor():
+		velocity.y += gravity * delta
 	else:
-		# Move right automatically at current game speed
-		velocity.x = current_speed
-		velocity.y = 0  # No vertical movement
+		# On floor - make sure running animation plays
+		if animated_sprite and animated_sprite.animation != "run":
+			animated_sprite.play("run")
 
-	# Apply the movement
+	# Always maintain fixed horizontal position
+	position.x = screen_position_x
+
+	# Handle movement (vertical only)
 	move_and_slide()
 
-## Set up player visuals (called from _ready)
-func setup_visuals():
-	# The sprite and collision will be set up in the scene file
-	# This function can be used to adjust them if needed
-	pass
+func _unhandled_input(event: InputEvent) -> void:
+	# Handle jump input
+	if event.is_action_pressed("jump"):
+		jump()
 
-## Called when game speed changes
-func _on_speed_changed(new_speed: float):
-	current_speed = new_speed
-	print("Player speed updated: ", new_speed)
+## Trigger a jump if player is on the ground
+func jump() -> void:
+	if is_on_floor():
+		velocity.y = jump_force
 
-## Called when game is over
-func _on_game_over():
-	# Stop moving
-	velocity = Vector2.ZERO
-	print("Player stopped - Game Over")
+		# Play jump animation
+		if animated_sprite:
+			animated_sprite.play("jump")
 
-## Get the player's current position for camera following
-func get_player_position() -> Vector2:
-	return global_position
+		# Trigger jump particles
+		if jump_particles:
+			jump_particles.restart()
+
+		# Emit signal for audio/effects
+		jumped.emit()
+
+		print("[Player] Jumped!")
+
+## Change the player's color
+## @param color: String name of the color (must be in available_colors)
+func set_color(color: String) -> void:
+	if color not in available_colors:
+		push_error("[Player] Invalid color: " + color)
+		return
+
+	current_color = color
+	update_visual_color()
+	color_changed.emit(color)
+
+	print("[Player] Color changed to: ", color)
+
+## Update the visual appearance to match current color
+## PLACEHOLDER: Uses modulate. Replace with sprite sheet switching when assets ready
+func update_visual_color() -> void:
+	if not animated_sprite:
+		return
+
+	# Map color names to Color values (PLACEHOLDER)
+	var color_map: Dictionary = {
+		"blue": Color(0.2, 0.6, 1.0),
+		"red": Color(1.0, 0.2, 0.2),
+		"green": Color(0.2, 1.0, 0.2),
+		"yellow": Color(1.0, 1.0, 0.2),
+		"purple": Color(0.8, 0.2, 1.0),
+		"orange": Color(1.0, 0.6, 0.2),
+		"pink": Color(1.0, 0.4, 0.8),
+		"brown": Color(0.6, 0.4, 0.2)
+	}
+
+	if current_color in color_map:
+		animated_sprite.modulate = color_map[current_color]
+
+		# Also update particle color
+		if jump_particles:
+			jump_particles.color = color_map[current_color]
+
+## Get current color name
+func get_current_color() -> String:
+	return current_color
+
+## Play idle animation (when game is paused/over)
+func play_idle() -> void:
+	if animated_sprite:
+		animated_sprite.play("idle")
+
+## Play run animation (when game is active)
+func play_run() -> void:
+	if animated_sprite:
+		animated_sprite.play("run")
